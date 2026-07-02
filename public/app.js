@@ -224,7 +224,8 @@ const NAV = {
     {id:"clients", label:"Clients"},
     {id:"tasktemplates", label:"Task Templates"},
     {id:"documents", label:"Documents"},
-    {id:"messages", label:"Messages"}
+    {id:"messages", label:"Messages"},
+    {id:"myaccount", label:"My Account"}
   ],
   caregiver: [
     {id:"myshifts", label:"My Shifts Today"},
@@ -285,6 +286,7 @@ function renderMain(){
     else if(currentView==="tasktemplates") main.innerHTML = viewAdminTaskTemplates();
     else if(currentView==="documents") main.innerHTML = viewAdminDocuments();
     else if(currentView==="messages") main.innerHTML = viewAdminMessages();
+    else if(currentView==="myaccount") main.innerHTML = viewAdminAccount();
   } else {
     if(currentView==="myshifts") main.innerHTML = viewCaregiverShifts();
     else if(currentView==="myclients") main.innerHTML = viewCaregiverClients();
@@ -612,6 +614,17 @@ function viewAdminMessages(){
       <div style="font-weight:600;font-size:13px;margin-top:2px;">${m.subject}</div>
       <div class="msg-body">${m.body}</div>
     </div>`).join("")}
+  </div>`;
+}
+
+function viewAdminAccount(){
+  return `<h1 class="page-title">My Account</h1>
+  <div class="page-sub">Username: <b>${SESSION.username}</b></div>
+  <div class="card">
+    <h3>Change my password</h3>
+    <div class="field-row"><label>Current password</label><input type="password" id="curPw"></div>
+    <div class="field-row"><label>New password (min. 6 characters)</label><input type="password" id="newPw"></div>
+    <div style="margin-top:10px;"><button class="btn btn-primary" id="btnChangePw">Update password</button></div>
   </div>`;
 }
 
