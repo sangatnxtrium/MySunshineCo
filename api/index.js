@@ -47,11 +47,12 @@ function rowToPublicUser(u) {
   return {
     id: u.id, name: u.name, role: u.role, username: u.username,
     phone: u.phone || "", email: u.email || "", hireDate: u.hire_date,
-    certifications: u.certifications || [], hourlyWage: Number(u.hourly_wage) || 0
+    certifications: u.certifications || [], hourlyWage: Number(u.hourly_wage) || 0,
+    sandataId: u.sandata_id || ""
   };
 }
 function rowToClient(c) {
-  return { id: c.id, name: c.name, address: c.address || "", phone: c.phone || "", active: c.active };
+  return { id: c.id, name: c.name, address: c.address || "", phone: c.phone || "", active: c.active, assignedCaregiverIds: c.assigned_caregiver_ids || [] };
 }
 function rowToShift(s) {
   return {
@@ -209,7 +210,7 @@ app.post("/api/change-password", requireAuth, h(async (req, res) => {
 
 /* ---------- Admin: manage caregiver accounts ---------- */
 app.post("/api/admin/caregivers", requireAuth, requireAdmin, h(async (req, res) => {
-  const { name, username, password, phone, email, hireDate, hourlyWage } = req.body || {};
+  const { name, username, password, phone, email, hireDate, hourlyWage, sandataId } = req.body || {};
   if (!name || !username || !password) return res.status(400).json({ error: "name, username, and password are required" });
   if (password.length < 6) return res.status(400).json({ error: "Password must be at least 6 characters" });
   const existing = await getUserByUsername(username);
@@ -219,7 +220,7 @@ app.post("/api/admin/caregivers", requireAuth, requireAdmin, h(async (req, res) 
   const { data, error } = await supabase.from("users").insert({
     id: uid("cg"), name, username, password_hash: bcrypt.hashSync(password, 10),
     role: "caregiver", phone: phone || "", email: email || "", hire_date: hireDate || todayStr(),
-    hourly_wage: wage, certifications: []
+    hourly_wage: wage, sandata_id: sandataId || "", certifications: []
   }).select().single();
   throwIfError(error, "create-caregiver");
   res.json(rowToPublicUser(data));
@@ -228,12 +229,13 @@ app.post("/api/admin/caregivers", requireAuth, requireAdmin, h(async (req, res) 
 app.patch("/api/admin/caregivers/:id", requireAuth, requireAdmin, h(async (req, res) => {
   const user = await getUserById(req.params.id);
   if (!user || user.role !== "caregiver") return res.status(404).json({ error: "Caregiver not found" });
-  const { name, phone, email, hireDate, hourlyWage } = req.body || {};
+  const { name, phone, email, hireDate, hourlyWage, sandataId } = req.body || {};
   const patch = {};
   if (name !== undefined) { if (!name.trim()) return res.status(400).json({ error: "Name cannot be empty" }); patch.name = name.trim(); }
   if (phone !== undefined) patch.phone = phone;
   if (email !== undefined) patch.email = email;
   if (hireDate !== undefined) patch.hire_date = hireDate;
+  if (sandataId !== undefined) patch.sandata_id = sandataId;
   if (hourlyWage !== undefined && hourlyWage !== "") {
     const wage = Number(hourlyWage);
     if (Number.isNaN(wage) || wage < 0) return res.status(400).json({ error: "Hourly wage must be a non-negative number" });
@@ -293,7 +295,7 @@ app.delete("/api/admin/caregivers/:id/certifications/:certId", requireAuth, requ
 app.post("/api/admin/clients", requireAuth, requireAdmin, h(async (req, res) => {
   const { name, address, phone } = req.body || {};
   if (!name || !name.trim()) return res.status(400).json({ error: "Client name is required" });
-  const { data, error } = await supabase.from("clients").insert({ id: uid("cl"), name: name.trim(), address: address || "", phone: phone || "", active: true }).select().single();
+  const { data, error } = await supabase.from("clients").insert({ id: uid("cl"), name: name.trim(), address: address || "", phone: phone || "", active: true, assigned_caregiver_ids: [] }).select().single();
   throwIfError(error, "create-client");
   res.json(rowToClient(data));
 }));
@@ -308,6 +310,31 @@ app.patch("/api/admin/clients/:id", requireAuth, requireAdmin, h(async (req, res
   const { data, error } = await supabase.from("clients").update(patch).eq("id", req.params.id).select().maybeSingle();
   throwIfError(error, "patch-client");
   if (!data) return res.status(404).json({ error: "Client not found" });
+  res.json(rowToClient(data));
+}));
+
+// Assign / unassign a caregiver to a client's ongoing caseload. This is separate
+// from scheduling a shift — it's who's regularly responsible for this client, so
+// the caregiver can see them under "My Clients" even before any visit is scheduled.
+app.post("/api/admin/clients/:id/assign", requireAuth, requireAdmin, h(async (req, res) => {
+  const client = await getClientById(req.params.id);
+  if (!client) return res.status(404).json({ error: "Client not found" });
+  const { caregiverId } = req.body || {};
+  const cg = await getUserById(caregiverId);
+  if (!cg || cg.role !== "caregiver") return res.status(400).json({ error: "Unknown caregiver" });
+  const current = client.assigned_caregiver_ids || [];
+  if (current.includes(caregiverId)) return res.json(rowToClient(client));
+  const { data, error } = await supabase.from("clients").update({ assigned_caregiver_ids: [...current, caregiverId] }).eq("id", client.id).select().single();
+  throwIfError(error, "assign-client");
+  res.json(rowToClient(data));
+}));
+
+app.delete("/api/admin/clients/:id/assign/:caregiverId", requireAuth, requireAdmin, h(async (req, res) => {
+  const client = await getClientById(req.params.id);
+  if (!client) return res.status(404).json({ error: "Client not found" });
+  const updated = (client.assigned_caregiver_ids || []).filter(id => id !== req.params.caregiverId);
+  const { data, error } = await supabase.from("clients").update({ assigned_caregiver_ids: updated }).eq("id", client.id).select().single();
+  throwIfError(error, "unassign-client");
   res.json(rowToClient(data));
 }));
 
@@ -372,17 +399,22 @@ app.get("/api/overview", requireAuth, h(async (req, res) => {
   const { data: myShiftRows, error: se } = await supabase.from("shifts").select("*").eq("caregiver_id", user.id);
   throwIfError(se, "caregiver-shifts");
   const myShifts = myShiftRows.map(rowToShift);
-  const clientIds = [...new Set(myShifts.map(s => s.clientId))];
-  const [{ data: clientRows, error: ce }, { data: docRows, error: de }, { data: msgRows, error: me }] = await Promise.all([
-    clientIds.length ? supabase.from("clients").select("*").in("id", clientIds) : Promise.resolve({ data: [], error: null }),
+  const [{ data: allClientRows, error: ce }, { data: docRows, error: de }, { data: msgRows, error: me }] = await Promise.all([
+    // Fetch all clients and filter in JS (small-scale data) so we can include both
+    // clients from scheduled shifts AND clients explicitly assigned to this caregiver,
+    // even if no shift has been scheduled for them yet.
+    supabase.from("clients").select("*"),
     supabase.from("documents").select("*").or(`related_to.eq.${user.id},related_to.eq.agency`),
     supabase.from("messages").select("*").or(`to_id.eq.all,to_id.eq.${user.id},from_id.eq.${user.id}`)
   ]);
   [ce, de, me].forEach(e => throwIfError(e, "caregiver-overview"));
+  const shiftClientIds = new Set(myShifts.map(s => s.clientId));
+  const relevantClients = allClientRows.filter(c => shiftClientIds.has(c.id) || (c.assigned_caregiver_ids || []).includes(user.id));
   res.json({
     role: "caregiver",
     me: rowToPublicUser(user),
-    clients: clientRows.map(rowToClient),
+    clients: relevantClients.map(rowToClient),
+    myAssignedClients: relevantClients.filter(c => (c.assigned_caregiver_ids || []).includes(user.id)).map(rowToClient),
     shifts: myShifts,
     documents: docRows.map(rowToDocument),
     messages: msgRows.map(rowToMessage)

@@ -228,6 +228,7 @@ const NAV = {
   ],
   caregiver: [
     {id:"myshifts", label:"My Shifts Today"},
+    {id:"myclients", label:"My Clients"},
     {id:"mydocuments", label:"My Documents"},
     {id:"mymessages", label:"Messages"},
     {id:"myaccount", label:"My Account"}
@@ -286,6 +287,7 @@ function renderMain(){
     else if(currentView==="messages") main.innerHTML = viewAdminMessages();
   } else {
     if(currentView==="myshifts") main.innerHTML = viewCaregiverShifts();
+    else if(currentView==="myclients") main.innerHTML = viewCaregiverClients();
     else if(currentView==="mydocuments") main.innerHTML = viewCaregiverDocuments();
     else if(currentView==="mymessages") main.innerHTML = viewCaregiverMessages();
     else if(currentView==="myaccount") main.innerHTML = viewCaregiverAccount();
@@ -429,12 +431,13 @@ function viewAdminRoster(){
       <div style="flex:1;min-width:140px;"><label style="font-size:11.5px;color:var(--gray-600);">Email</label><input type="text" id="newCgEmail" placeholder="jane@example.com"></div>
       <div style="flex:1;min-width:140px;"><label style="font-size:11.5px;color:var(--gray-600);">Hire date</label><input type="date" id="newCgHireDate"></div>
       <div style="flex:1;min-width:140px;"><label style="font-size:11.5px;color:var(--gray-600);">Hourly wage ($)</label><input type="text" id="newCgWage" placeholder="18.50"></div>
+      <div style="flex:1;min-width:140px;"><label style="font-size:11.5px;color:var(--gray-600);">Sandata ID</label><input type="text" id="newCgSandataId" placeholder="Sandata caregiver ID"></div>
     </div>
     <div style="margin-top:10px;"><button class="btn btn-primary" id="btnCreateCaregiver">Create account</button></div>
   </div>
 
   <div class="card">
-    <table><thead><tr><th>Name</th><th>Username</th><th>Phone</th><th>Hire date</th><th>Hourly wage</th><th>Compliance (14d)</th><th>Credentials</th><th>Actions</th></tr></thead><tbody>
+    <table><thead><tr><th>Name</th><th>Username</th><th>Phone</th><th>Sandata ID</th><th>Hire date</th><th>Hourly wage</th><th>Compliance (14d)</th><th>Credentials</th><th>Actions</th></tr></thead><tbody>
     ${VIEW.caregivers.map(cg=>{
       const comp = computeComplianceDeduction(cg.id);
       return `
@@ -442,6 +445,7 @@ function viewAdminRoster(){
         <td>${cg.name}</td>
         <td>${cg.username}</td>
         <td>${cg.phone}</td>
+        <td>${cg.sandataId || '<span class="muted">—</span>'}</td>
         <td>${cg.hireDate}</td>
         <td>$${(cg.hourlyWage||0).toFixed(2)}/hr</td>
         <td>${comp.missedDays>0 ? `<span class="badge badge-red">${comp.missedDays}d · ~$${comp.deduction.toFixed(2)}</span>` : '<span class="badge badge-green">Clean</span>'}</td>
@@ -474,13 +478,18 @@ function viewAdminClients(){
     <div style="margin-top:10px;"><button class="btn btn-primary" id="btnAddClient">Add client</button></div>
   </div>
   <div class="card">
-    <table><thead><tr><th>Name</th><th>Address</th><th>Phone</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+    <table><thead><tr><th>Name</th><th>Address</th><th>Phone</th><th>Assigned caregivers</th><th>Status</th><th>Actions</th></tr></thead><tbody>
     ${VIEW.clients.map(c=>`
       <tr>
         <td>${c.name}</td><td>${c.address||"—"}</td><td>${c.phone||"—"}</td>
+        <td><div class="tag-list">${(c.assignedCaregiverIds||[]).map(id=>{
+          const cg = getCaregiver(id);
+          return cg ? `<span class="badge badge-blue">${cg.name}</span>` : "";
+        }).join("") || '<span class="muted">Unassigned</span>'}</div></td>
         <td>${c.active ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-gray">Inactive</span>'}</td>
         <td class="row-flex">
           <button class="btn btn-outline btn-sm" data-edit-client="${c.id}">Edit</button>
+          <button class="btn btn-outline btn-sm" data-assign-client="${c.id}">Assign caregivers</button>
           <button class="btn btn-outline btn-sm" data-toggle-client="${c.id}">${c.active ? "Deactivate" : "Reactivate"}</button>
         </td>
       </tr>`).join("")}
@@ -665,6 +674,18 @@ function renderCaregiverShiftCard(s){
   </div>`;
 }
 
+function viewCaregiverClients(){
+  const assigned = VIEW.myAssignedClients || [];
+  return `<h1 class="page-title">My Clients</h1>
+  <div class="page-sub">Clients assigned to you on an ongoing basis, whether or not a visit is scheduled today.</div>
+  <div class="card">
+    ${assigned.length===0 ? `<div class="empty-state">No clients assigned to you yet — ask the office if this doesn't look right.</div>` : `
+    <table><thead><tr><th>Name</th><th>Address</th><th>Phone</th></tr></thead><tbody>
+    ${assigned.map(c=>`<tr><td>${c.name}</td><td>${c.address||"—"}</td><td>${c.phone||"—"}</td></tr>`).join("")}
+    </tbody></table>`}
+  </div>`;
+}
+
 function viewCaregiverDocuments(){
   const myDocs = VIEW.documents.filter(d=>d.relatedTo===SESSION.id);
   const agencyDocs = VIEW.documents.filter(d=>d.relatedTo==="agency");
@@ -785,6 +806,7 @@ function attachViewHandlers(){
     try{ await api(`/api/admin/clients/${c.id}`, {method:"PATCH", body: JSON.stringify({active: !c.active})}); await refresh(false); }
     catch(e){ showToast(e.message, true); }
   }));
+  main.querySelectorAll("[data-assign-client]").forEach(btn=>btn.addEventListener("click", ()=> openAssignClientModal(btn.dataset.assignClient)));
 
   // Task templates
   const btnAddTpl = document.getElementById("btnAddTaskTemplate");
@@ -844,9 +866,10 @@ function attachViewHandlers(){
     const email = document.getElementById("newCgEmail").value.trim();
     const hireDate = document.getElementById("newCgHireDate").value;
     const hourlyWage = document.getElementById("newCgWage").value.trim();
+    const sandataId = document.getElementById("newCgSandataId").value.trim();
     if(!name || !username || !password){ showToast("Name, username, and password are required.", true); return; }
     try{
-      await api("/api/admin/caregivers", {method:"POST", body: JSON.stringify({name, username, password, phone, email, hireDate, hourlyWage})});
+      await api("/api/admin/caregivers", {method:"POST", body: JSON.stringify({name, username, password, phone, email, hireDate, hourlyWage, sandataId})});
       showToast(`Account created for ${name}. Share the username/password with them securely.`);
       await refresh();
     }catch(e){ showToast(e.message, true); }
@@ -965,6 +988,7 @@ function renderCaregiverEditModal(cgId, editingCertId){
       <div style="flex:1;"><label style="font-size:11.5px;color:var(--gray-600);">Email</label><input type="text" id="editCgEmail" value="${cg.email||''}"></div>
       <div style="flex:1;"><label style="font-size:11.5px;color:var(--gray-600);">Hire date</label><input type="date" id="editCgHireDate" value="${cg.hireDate||''}"></div>
       <div style="flex:1;"><label style="font-size:11.5px;color:var(--gray-600);">Hourly wage ($)</label><input type="text" id="editCgWage" value="${cg.hourlyWage||0}"></div>
+      <div style="flex:1;"><label style="font-size:11.5px;color:var(--gray-600);">Sandata ID</label><input type="text" id="editCgSandataId" value="${cg.sandataId||''}"></div>
     </div>
     <div style="margin-top:10px;"><button class="btn btn-primary btn-sm" id="saveCgProfileBtn">Save profile</button></div>
     <hr class="divider">
@@ -986,9 +1010,10 @@ function renderCaregiverEditModal(cgId, editingCertId){
     const email = document.getElementById("editCgEmail").value.trim();
     const hireDate = document.getElementById("editCgHireDate").value;
     const hourlyWage = document.getElementById("editCgWage").value.trim();
+    const sandataId = document.getElementById("editCgSandataId").value.trim();
     if(!name){ showToast("Name cannot be empty.", true); return; }
     try{
-      await api(`/api/admin/caregivers/${cgId}`, {method:"PATCH", body: JSON.stringify({name, phone, email, hireDate, hourlyWage})});
+      await api(`/api/admin/caregivers/${cgId}`, {method:"PATCH", body: JSON.stringify({name, phone, email, hireDate, hourlyWage, sandataId})});
       showToast("Profile updated.");
       await loadOverview(); renderMain(); renderCaregiverEditModal(cgId, null);
     }catch(e){ showToast(e.message, true); }
@@ -1073,6 +1098,40 @@ function openEditClientModal(clientId){
       await refresh(false);
     }catch(e){ showToast(e.message, true); }
   });
+}
+
+/* ---------- Assign caregivers to a client's ongoing caseload ---------- */
+function openAssignClientModal(clientId){
+  document.getElementById("modalOverlay").classList.add("open");
+  renderAssignClientModal(clientId);
+}
+
+function renderAssignClientModal(clientId){
+  const c = VIEW.clients.find(x=>x.id===clientId);
+  const body = document.getElementById("modalBody");
+  if(!c){ document.getElementById("modalOverlay").classList.remove("open"); return; }
+  const assigned = new Set(c.assignedCaregiverIds||[]);
+  body.innerHTML = `
+    <h3>Assign caregivers — ${c.name}</h3>
+    <div class="page-sub" style="margin-bottom:10px;">Caregivers checked here can see ${c.name} under "My Clients" even before a visit is scheduled. This doesn't restrict who can be scheduled for a visit — it's just the ongoing caseload assignment.</div>
+    ${VIEW.caregivers.map(cg=>`
+      <label class="checklist-item" style="margin-bottom:8px;">
+        <input type="checkbox" data-assign-toggle="${cg.id}" ${assigned.has(cg.id)?"checked":""}> ${cg.name}
+      </label>`).join("")}
+    <div class="modal-actions"><button class="btn btn-outline" id="assignCloseBtn">Close</button></div>
+  `;
+  body.querySelectorAll("[data-assign-toggle]").forEach(cb=>cb.addEventListener("change", async ()=>{
+    const caregiverId = cb.dataset.assignToggle;
+    try{
+      if(cb.checked){
+        await api(`/api/admin/clients/${clientId}/assign`, {method:"POST", body: JSON.stringify({caregiverId})});
+      } else {
+        await api(`/api/admin/clients/${clientId}/assign/${caregiverId}`, {method:"DELETE"});
+      }
+      await loadOverview(); renderMain(); renderAssignClientModal(clientId);
+    }catch(e){ showToast(e.message, true); }
+  }));
+  document.getElementById("assignCloseBtn").addEventListener("click", ()=> document.getElementById("modalOverlay").classList.remove("open"));
 }
 
 /* ---------- Schedule / edit a visit ---------- */

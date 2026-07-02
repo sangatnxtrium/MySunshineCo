@@ -18,6 +18,7 @@ create table if not exists users (
   email text default '',
   hire_date date,
   hourly_wage numeric(10,2) default 0,
+  sandata_id text default '', -- this caregiver's ID in the Sandata EVV system, for matching call records
   certifications jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now()
 );
@@ -28,6 +29,7 @@ create table if not exists clients (
   address text default '',
   phone text default '',
   active boolean not null default true,
+  assigned_caregiver_ids jsonb not null default '[]'::jsonb, -- caregiver(s) with an ongoing caseload assignment to this client
   created_at timestamptz not null default now()
 );
 
