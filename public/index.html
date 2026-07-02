@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MySunshineCo</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<div id="loginScreen">
+  <div class="login-box">
+    <h1>MySunshineCo</h1>
+    <div class="sub">Sign in with your agency account</div>
+    <div class="login-error" id="loginError"></div>
+    <label>Username</label>
+    <input type="text" id="loginUsername" autocomplete="username">
+    <label>Password</label>
+    <input type="password" id="loginPassword" autocomplete="current-password">
+    <button id="loginBtn">Sign in</button>
+    <div class="login-hint">
+      Demo accounts — Admin: <b>admin / admin123</b><br>
+      Caregivers: <b>mgonzalez</b>, <b>jokafor</b>, <b>pnair</b> / <b>caregiver123</b>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+  <div id="sidebar">
+    <div class="brand">MySunshineCo<small id="roleLabel"></small></div>
+    <div id="navItems"></div>
+    <div class="sidebar-footer">
+      <div class="who" id="whoLabel"></div>
+      <div class="role" id="whoRole"></div>
+      <button id="logoutBtn">Sign out</button>
+    </div>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
+    <div id="topbar">
+      <div class="topbar-right">
+        <div class="bell-wrap">
+          <button class="bell-btn" id="bellBtn">🔔<span class="bell-badge" id="bellBadge" style="display:none;">0</span></button>
+          <div class="bell-panel" id="bellPanel">
+            <h4>Reminders &amp; Alerts</h4>
+            <div id="bellList"></div>
+          </div>
+        </div>
+        <div style="font-size:13px;color:var(--gray-600);" id="dateLabel"></div>
+      </div>
+    </div>
+    <div id="main"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="modalBody"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+{
+  "name": "mysunshineco",
+  "version": "2.0.0",
+  "description": "MySunshineCo agency app — Supabase-backed, deployable to Vercel. Per-employee logins, Sandata EVV call tracking, skipped-visit tracking, recertification workflow, documents, and messaging.",
+  "main": "api/index.js",
+  "scripts": {
+    "dev": "node dev-server.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.6",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1"
+  },
+  "devDependencies": {
+    "dotenv": "^16.4.5"
+  }
+}
