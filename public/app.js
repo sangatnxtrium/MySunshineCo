@@ -29,7 +29,7 @@ async function api(path, opts){
   const res = await fetch(path, { credentials:"same-origin", headers, ...opts });
   let data = {};
   try { data = await res.json(); } catch(e){ /* no body */ }
-  if(res.status === 401){ showLogin(); throw new Error("Session expired — please sign in again."); }
+  if(res.status === 401 && path !== "/api/login"){ showLogin(); throw new Error("Session expired — please sign in again."); }
   if(!res.ok) throw new Error(data.error || "Request failed");
   return data;
 }
