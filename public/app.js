@@ -253,12 +253,24 @@ function renderNav(){
   const wrap = document.getElementById("navItems");
   wrap.innerHTML = items.map(i=>`<div class="nav-item ${i.id===currentView?'active':''}" data-nav="${i.id}">${i.label}</div>`).join("");
   wrap.querySelectorAll(".nav-item").forEach(el=>{
-    el.addEventListener("click", ()=>{ currentView = el.dataset.nav; renderMain(); highlightNav(); });
+    el.addEventListener("click", ()=>{ currentView = el.dataset.nav; renderMain(); highlightNav(); closeMobileSidebar(); });
   });
 }
 function highlightNav(){
   document.querySelectorAll(".nav-item").forEach(el=> el.classList.toggle("active", el.dataset.nav===currentView));
 }
+
+/* ---------- Mobile sidebar toggle ---------- */
+function openMobileSidebar(){
+  document.getElementById("sidebar").classList.add("open");
+  document.getElementById("sidebarBackdrop").classList.add("open");
+}
+function closeMobileSidebar(){
+  document.getElementById("sidebar").classList.remove("open");
+  document.getElementById("sidebarBackdrop").classList.remove("open");
+}
+document.getElementById("mobileNavToggle").addEventListener("click", openMobileSidebar);
+document.getElementById("sidebarBackdrop").addEventListener("click", closeMobileSidebar);
 
 function renderBell(){
   const alerts = computeAlerts();
@@ -328,15 +340,15 @@ function viewAdminDashboard(){
   <div class="card"><h3>Live visit &amp; Sandata call status <span class="count">${total} today</span></h3>${renderShiftTable(shifts, true)}</div>
   <div class="card"><h3>Certifications expiring within 30 days <span class="count">${expiringCerts.length}</span></h3>
     ${expiringCerts.length===0 ? `<div class="empty-state">Nothing expiring soon.</div>` : `
-    <table><thead><tr><th>Caregiver</th><th>Credential</th><th>Expires</th><th>Status</th></tr></thead><tbody>
+    <div class="table-scroll"><table><thead><tr><th>Caregiver</th><th>Credential</th><th>Expires</th><th>Status</th></tr></thead><tbody>
     ${expiringCerts.map(e=>`<tr><td>${e.cg.name}</td><td>${e.c.name}</td><td>${e.c.expiresOn}</td><td>${e.d<0?'<span class="badge badge-red">Expired</span>':`<span class="badge badge-amber">${e.d}d left</span>`}</td></tr>`).join("")}
-    </tbody></table>`}
+    </tbody></table></div>`}
   </div>`;
 }
 
 function renderShiftTable(shifts, showCaregiver){
   if(shifts.length===0) return `<div class="empty-state">No visits scheduled.</div>`;
-  return `<table><thead><tr>
+  return `<div class="table-scroll"><table><thead><tr>
     ${showCaregiver ? "<th>Caregiver</th>" : ""}<th>Client</th><th>Window</th><th>Visit status</th><th>Call-in</th><th>Call-out</th>
   </tr></thead><tbody>
   ${shifts.map(s=>{
@@ -354,7 +366,7 @@ function renderShiftTable(shifts, showCaregiver){
       <td>${badgeForCallStatus(callStatusForShift(s,"callOut"))}</td>
     </tr>`;
   }).join("")}
-  </tbody></table>`;
+  </tbody></table></div>`;
 }
 
 function viewAdminSchedule(){
@@ -374,7 +386,7 @@ function viewAdminSchedule(){
 
 function renderEditableShiftTable(shifts){
   if(shifts.length===0) return `<div class="empty-state">No visits scheduled for this date.</div>`;
-  return `<table><thead><tr><th>Caregiver</th><th>Client</th><th>Window</th><th>Visit status</th><th>Call-in</th><th>Call-out</th><th>Actions</th></tr></thead><tbody>
+  return `<div class="table-scroll"><table><thead><tr><th>Caregiver</th><th>Client</th><th>Window</th><th>Visit status</th><th>Call-in</th><th>Call-out</th><th>Actions</th></tr></thead><tbody>
   ${shifts.map(s=>{
     const cg=getCaregiver(s.caregiverId), cl=getClient(s.clientId);
     const visitBadge = s.status==="completed" ? '<span class="badge badge-green">Completed</span>'
@@ -394,7 +406,7 @@ function renderEditableShiftTable(shifts){
       </td>
     </tr>`;
   }).join("")}
-  </tbody></table>`;
+  </tbody></table></div>`;
 }
 
 function viewAdminSkipped(){
@@ -403,7 +415,7 @@ function viewAdminSkipped(){
   <div class="page-sub">Visits that were not completed as scheduled, with reasons and follow-up tracking.</div>
   <div class="card">
     ${skipped.length===0 ? `<div class="empty-state">No skipped visits. 🎉</div>` : `
-    <table><thead><tr><th>Date</th><th>Client</th><th>Assigned caregiver</th><th>Window</th><th>Reason</th><th>Follow-up</th></tr></thead><tbody>
+    <div class="table-scroll"><table><thead><tr><th>Date</th><th>Client</th><th>Assigned caregiver</th><th>Window</th><th>Reason</th><th>Follow-up</th></tr></thead><tbody>
     ${skipped.map(s=>{
       const cg=getCaregiver(s.caregiverId), cl=getClient(s.clientId);
       return `<tr>
@@ -413,7 +425,7 @@ function viewAdminSkipped(){
         <td>${s.resolved ? '<span class="badge badge-green">Resolved</span>' : `<button class="btn btn-outline btn-sm" data-resolve-shift="${s.id}">Mark resolved</button>`}</td>
       </tr>`;
     }).join("")}
-    </tbody></table>`}
+    </tbody></table></div>`}
   </div>`;
 }
 
@@ -439,7 +451,7 @@ function viewAdminRoster(){
   </div>
 
   <div class="card">
-    <table><thead><tr><th>Name</th><th>Username</th><th>Phone</th><th>Sandata ID</th><th>Hire date</th><th>Hourly wage</th><th>Compliance (14d)</th><th>Credentials</th><th>Actions</th></tr></thead><tbody>
+    <div class="table-scroll"><table><thead><tr><th>Name</th><th>Username</th><th>Phone</th><th>Sandata ID</th><th>Hire date</th><th>Hourly wage</th><th>Compliance (14d)</th><th>Credentials</th><th>Actions</th></tr></thead><tbody>
     ${VIEW.caregivers.map(cg=>{
       const comp = computeComplianceDeduction(cg.id);
       return `
@@ -462,7 +474,7 @@ function viewAdminRoster(){
         </td>
       </tr>`;
     }).join("")}
-    </tbody></table>
+    </tbody></table></div>
   </div>`;
 }
 
@@ -480,10 +492,11 @@ function viewAdminClients(){
     <div style="margin-top:10px;"><button class="btn btn-primary" id="btnAddClient">Add client</button></div>
   </div>
   <div class="card">
-    <table><thead><tr><th>Name</th><th>Address</th><th>Phone</th><th>Assigned caregivers</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+    <div class="table-scroll"><table><thead><tr><th>Name</th><th>Address</th><th>Phone</th><th>Health conditions</th><th>Assigned caregivers</th><th>Status</th><th>Actions</th></tr></thead><tbody>
     ${VIEW.clients.map(c=>`
       <tr>
         <td>${c.name}</td><td>${c.address||"—"}</td><td>${c.phone||"—"}</td>
+        <td><div class="tag-list">${(c.healthConditions||[]).map(cond=>`<span class="badge badge-amber">${cond}</span>`).join("") || '<span class="muted">None on file</span>'}</div></td>
         <td><div class="tag-list">${(c.assignedCaregiverIds||[]).map(id=>{
           const cg = getCaregiver(id);
           return cg ? `<span class="badge badge-blue">${cg.name}</span>` : "";
@@ -491,11 +504,12 @@ function viewAdminClients(){
         <td>${c.active ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-gray">Inactive</span>'}</td>
         <td class="row-flex">
           <button class="btn btn-outline btn-sm" data-edit-client="${c.id}">Edit</button>
+          <button class="btn btn-outline btn-sm" data-manage-conditions="${c.id}">Health conditions</button>
           <button class="btn btn-outline btn-sm" data-assign-client="${c.id}">Assign caregivers</button>
           <button class="btn btn-outline btn-sm" data-toggle-client="${c.id}">${c.active ? "Deactivate" : "Reactivate"}</button>
         </td>
       </tr>`).join("")}
-    </tbody></table>
+    </tbody></table></div>
   </div>`;
 }
 
@@ -538,7 +552,7 @@ function viewAdminRecert(){
   <div class="card">
     <h3>Pending renewal review <span class="count">${pending.length}</span></h3>
     ${pending.length===0 ? `<div class="empty-state">No renewals waiting for review.</div>` : `
-    <table><thead><tr><th>Caregiver</th><th>Credential</th><th>Current expiry</th><th>New expiry</th><th>Submitted</th><th>Document</th><th>Decision</th></tr></thead><tbody>
+    <div class="table-scroll"><table><thead><tr><th>Caregiver</th><th>Credential</th><th>Current expiry</th><th>New expiry</th><th>Submitted</th><th>Document</th><th>Decision</th></tr></thead><tbody>
     ${pending.map(r=>`<tr>
       <td>${r.cg.name}</td><td>${r.cert.name}</td><td>${r.cert.expiresOn||"—"}</td><td>${r.cert.pendingRenewal.newExpiresOn}</td>
       <td>${r.cert.pendingRenewal.submittedOn} by ${r.cert.pendingRenewal.submittedByName}</td>
@@ -548,19 +562,19 @@ function viewAdminRecert(){
         <button class="btn btn-red btn-sm" data-reject-cert="${r.cert.id}">Reject</button>
       </td>
     </tr>`).join("")}
-    </tbody></table>`}
+    </tbody></table></div>`}
   </div>
 
   <div class="card">
     <h3>Needs renewal (expiring within 30 days or expired) <span class="count">${needsAction.length}</span></h3>
     ${needsAction.length===0 ? `<div class="empty-state">Nothing needs attention right now.</div>` : `
-    <table><thead><tr><th>Caregiver</th><th>Credential</th><th>Expires</th><th>Status</th></tr></thead><tbody>
+    <div class="table-scroll"><table><thead><tr><th>Caregiver</th><th>Credential</th><th>Expires</th><th>Status</th></tr></thead><tbody>
     ${needsAction.map(r=>{
       const d = daysUntil(r.cert.expiresOn);
       return `<tr><td>${r.cg.name}</td><td>${r.cert.name}</td><td>${r.cert.expiresOn}</td>
         <td>${d<0 ? '<span class="badge badge-red">Expired</span>' : `<span class="badge badge-amber">${d}d left</span>`}</td></tr>`;
     }).join("")}
-    </tbody></table>`}
+    </tbody></table></div>`}
   </div>`;
 }
 
@@ -654,15 +668,19 @@ function renderCaregiverShiftCard(s){
     : '<span class="badge badge-gray">Scheduled</span>';
   const doneCount = s.activities.filter(a=>a.done).length;
 
+  const conditionTags = (cl.healthConditions||[]).length
+    ? `<div class="tag-list" style="margin-top:6px;">${cl.healthConditions.map(cond=>`<span class="badge badge-amber">⚠ ${cond}</span>`).join("")}</div>`
+    : "";
+
   if(s.status==="skipped"){
     return `<div class="shift-card">
-      <div class="shift-head"><div><div class="client-name">${cl.name}</div><div class="meta">${cl.address} · ${fmtTimeFromISO(s.startTime)} – ${fmtTimeFromISO(s.endTime)}</div></div>${visitBadge}</div>
+      <div class="shift-head"><div><div class="client-name">${cl.name}</div><div class="meta">${cl.address} · ${fmtTimeFromISO(s.startTime)} – ${fmtTimeFromISO(s.endTime)}</div>${conditionTags}</div>${visitBadge}</div>
       <div class="field-row"><label>Reason for skipped visit</label><div class="muted">${s.skipReason||"—"}</div></div>
     </div>`;
   }
 
   return `<div class="shift-card">
-    <div class="shift-head"><div><div class="client-name">${cl.name}</div><div class="meta">${cl.address} · ${cl.phone} · ${fmtTimeFromISO(s.startTime)} – ${fmtTimeFromISO(s.endTime)}</div></div>${visitBadge}</div>
+    <div class="shift-head"><div><div class="client-name">${cl.name}</div><div class="meta">${cl.address} · ${cl.phone} · ${fmtTimeFromISO(s.startTime)} – ${fmtTimeFromISO(s.endTime)}</div>${conditionTags}</div>${visitBadge}</div>
     <div class="call-row">
       <div class="call-box">
         <div class="label">Sandata call-in</div>
@@ -693,9 +711,11 @@ function viewCaregiverClients(){
   <div class="page-sub">Clients assigned to you on an ongoing basis, whether or not a visit is scheduled today.</div>
   <div class="card">
     ${assigned.length===0 ? `<div class="empty-state">No clients assigned to you yet — ask the office if this doesn't look right.</div>` : `
-    <table><thead><tr><th>Name</th><th>Address</th><th>Phone</th></tr></thead><tbody>
-    ${assigned.map(c=>`<tr><td>${c.name}</td><td>${c.address||"—"}</td><td>${c.phone||"—"}</td></tr>`).join("")}
-    </tbody></table>`}
+    <div class="table-scroll"><table><thead><tr><th>Name</th><th>Address</th><th>Phone</th><th>Health conditions</th></tr></thead><tbody>
+    ${assigned.map(c=>`<tr><td>${c.name}</td><td>${c.address||"—"}</td><td>${c.phone||"—"}</td>
+      <td><div class="tag-list">${(c.healthConditions||[]).map(cond=>`<span class="badge badge-amber">${cond}</span>`).join("") || '<span class="muted">None on file</span>'}</div></td>
+    </tr>`).join("")}
+    </tbody></table></div>`}
   </div>`;
 }
 
@@ -820,6 +840,7 @@ function attachViewHandlers(){
     catch(e){ showToast(e.message, true); }
   }));
   main.querySelectorAll("[data-assign-client]").forEach(btn=>btn.addEventListener("click", ()=> openAssignClientModal(btn.dataset.assignClient)));
+  main.querySelectorAll("[data-manage-conditions]").forEach(btn=>btn.addEventListener("click", ()=> openHealthConditionsModal(btn.dataset.manageConditions)));
 
   // Task templates
   const btnAddTpl = document.getElementById("btnAddTaskTemplate");
@@ -1145,6 +1166,45 @@ function renderAssignClientModal(clientId){
     }catch(e){ showToast(e.message, true); }
   }));
   document.getElementById("assignCloseBtn").addEventListener("click", ()=> document.getElementById("modalOverlay").classList.remove("open"));
+}
+
+/* ---------- Health conditions per client ---------- */
+function openHealthConditionsModal(clientId){
+  document.getElementById("modalOverlay").classList.add("open");
+  renderHealthConditionsModal(clientId);
+}
+
+function renderHealthConditionsModal(clientId){
+  const c = VIEW.clients.find(x=>x.id===clientId);
+  const body = document.getElementById("modalBody");
+  if(!c){ document.getElementById("modalOverlay").classList.remove("open"); return; }
+  body.innerHTML = `
+    <h3>Health conditions — ${c.name}</h3>
+    <div class="page-sub" style="margin-bottom:10px;">Shown to caregivers on this client's visits so relevant health info is visible up front (e.g. "Diabetic", "Fall risk", "Dementia", "Penicillin allergy").</div>
+    <div class="tag-list" style="margin-bottom:12px;">
+      ${(c.healthConditions||[]).map((cond,idx)=>`<span class="badge badge-amber">${cond} <span data-remove-condition="${idx}" style="cursor:pointer;font-weight:700;margin-left:4px;">&times;</span></span>`).join("") || '<span class="muted" style="font-size:12.5px;">None on file.</span>'}
+    </div>
+    <div class="row-flex">
+      <input type="text" id="newConditionInput" placeholder="e.g. Fall risk" style="flex:1;">
+      <button class="btn btn-outline btn-sm" id="addConditionBtn">Add</button>
+    </div>
+    <div class="modal-actions"><button class="btn btn-outline" id="conditionsCloseBtn">Close</button></div>
+  `;
+  document.getElementById("addConditionBtn").addEventListener("click", async ()=>{
+    const condition = document.getElementById("newConditionInput").value.trim();
+    if(!condition){ showToast("Enter a condition first.", true); return; }
+    try{
+      await api(`/api/admin/clients/${clientId}/health-conditions`, {method:"POST", body: JSON.stringify({condition})});
+      await loadOverview(); renderMain(); renderHealthConditionsModal(clientId);
+    }catch(e){ showToast(e.message, true); }
+  });
+  body.querySelectorAll("[data-remove-condition]").forEach(el=>el.addEventListener("click", async ()=>{
+    try{
+      await api(`/api/admin/clients/${clientId}/health-conditions/${el.dataset.removeCondition}`, {method:"DELETE"});
+      await loadOverview(); renderMain(); renderHealthConditionsModal(clientId);
+    }catch(e){ showToast(e.message, true); }
+  }));
+  document.getElementById("conditionsCloseBtn").addEventListener("click", ()=> document.getElementById("modalOverlay").classList.remove("open"));
 }
 
 /* ---------- Schedule / edit a visit ---------- */

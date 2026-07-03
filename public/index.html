@@ -18,14 +18,11 @@
     <label>Password</label>
     <input type="password" id="loginPassword" autocomplete="current-password">
     <button id="loginBtn">Sign in</button>
-    <div class="login-hint">
-      Demo accounts — Admin: <b>admin / admin123</b><br>
-      Caregivers: <b>mgonzalez</b>, <b>jokafor</b>, <b>pnair</b> / <b>caregiver123</b>
-    </div>
   </div>
 </div>
 
 <div id="app">
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
   <div id="sidebar">
     <div class="brand">MySunshineCo<small id="roleLabel"></small></div>
     <div id="navItems"></div>
@@ -37,6 +34,9 @@
   </div>
   <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
     <div id="topbar">
+      <div class="topbar-left">
+        <button class="mobile-nav-toggle" id="mobileNavToggle">☰</button>
+      </div>
       <div class="topbar-right">
         <div class="bell-wrap">
           <button class="bell-btn" id="bellBtn">🔔<span class="bell-badge" id="bellBadge" style="display:none;">0</span></button>

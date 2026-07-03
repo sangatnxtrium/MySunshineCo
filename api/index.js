@@ -52,7 +52,7 @@ function rowToPublicUser(u) {
   };
 }
 function rowToClient(c) {
-  return { id: c.id, name: c.name, address: c.address || "", phone: c.phone || "", active: c.active, assignedCaregiverIds: c.assigned_caregiver_ids || [] };
+  return { id: c.id, name: c.name, address: c.address || "", phone: c.phone || "", active: c.active, assignedCaregiverIds: c.assigned_caregiver_ids || [], healthConditions: c.health_conditions || [] };
 }
 function rowToShift(s) {
   return {
@@ -295,7 +295,7 @@ app.delete("/api/admin/caregivers/:id/certifications/:certId", requireAuth, requ
 app.post("/api/admin/clients", requireAuth, requireAdmin, h(async (req, res) => {
   const { name, address, phone } = req.body || {};
   if (!name || !name.trim()) return res.status(400).json({ error: "Client name is required" });
-  const { data, error } = await supabase.from("clients").insert({ id: uid("cl"), name: name.trim(), address: address || "", phone: phone || "", active: true, assigned_caregiver_ids: [] }).select().single();
+  const { data, error } = await supabase.from("clients").insert({ id: uid("cl"), name: name.trim(), address: address || "", phone: phone || "", active: true, assigned_caregiver_ids: [], health_conditions: [] }).select().single();
   throwIfError(error, "create-client");
   res.json(rowToClient(data));
 }));
@@ -335,6 +335,33 @@ app.delete("/api/admin/clients/:id/assign/:caregiverId", requireAuth, requireAdm
   const updated = (client.assigned_caregiver_ids || []).filter(id => id !== req.params.caregiverId);
   const { data, error } = await supabase.from("clients").update({ assigned_caregiver_ids: updated }).eq("id", client.id).select().single();
   throwIfError(error, "unassign-client");
+  res.json(rowToClient(data));
+}));
+
+// Health conditions — a simple tag list per client (e.g. "Diabetic", "Fall risk").
+// Shown to caregivers on their shift cards and client list so relevant health info
+// is visible before/during a visit, not buried in a document somewhere.
+app.post("/api/admin/clients/:id/health-conditions", requireAuth, requireAdmin, h(async (req, res) => {
+  const client = await getClientById(req.params.id);
+  if (!client) return res.status(404).json({ error: "Client not found" });
+  const { condition } = req.body || {};
+  if (!condition || !condition.trim()) return res.status(400).json({ error: "Condition text is required" });
+  const current = client.health_conditions || [];
+  if (current.some(c => c.toLowerCase() === condition.trim().toLowerCase())) return res.json(rowToClient(client));
+  const { data, error } = await supabase.from("clients").update({ health_conditions: [...current, condition.trim()] }).eq("id", client.id).select().single();
+  throwIfError(error, "add-health-condition");
+  res.json(rowToClient(data));
+}));
+
+app.delete("/api/admin/clients/:id/health-conditions/:index", requireAuth, requireAdmin, h(async (req, res) => {
+  const client = await getClientById(req.params.id);
+  if (!client) return res.status(404).json({ error: "Client not found" });
+  const idx = Number(req.params.index);
+  const current = client.health_conditions || [];
+  if (!current[idx]) return res.status(400).json({ error: "Invalid condition index" });
+  const updated = current.filter((_, i) => i !== idx);
+  const { data, error } = await supabase.from("clients").update({ health_conditions: updated }).eq("id", client.id).select().single();
+  throwIfError(error, "remove-health-condition");
   res.json(rowToClient(data));
 }));
 

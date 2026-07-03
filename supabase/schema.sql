@@ -30,6 +30,7 @@ create table if not exists clients (
   phone text default '',
   active boolean not null default true,
   assigned_caregiver_ids jsonb not null default '[]'::jsonb, -- caregiver(s) with an ongoing caseload assignment to this client
+  health_conditions jsonb not null default '[]'::jsonb, -- e.g. ["Diabetic","Fall risk","Dementia","Penicillin allergy"]
   created_at timestamptz not null default now()
 );
 
