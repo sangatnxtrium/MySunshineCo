@@ -86,6 +86,17 @@ create table if not exists task_templates (
   name text not null unique
 );
 
+-- Placeholder for a future Sandata API connection (admin-only). Not wired up to
+-- any real Sandata endpoint yet — just a place to store credentials once you have
+-- them. api_key is never returned to the browser after being saved.
+create table if not exists integration_settings (
+  id text primary key,
+  api_url text default '',
+  api_key text default '',
+  updated_at timestamptz,
+  updated_by text
+);
+
 -- Seed the one Office Admin account so you have a way to log in on first deploy.
 -- Password is "admin123" — CHANGE IT immediately after your first login (My Account,
 -- or reset it here later with: update users set password_hash = crypt('newpassword', gen_salt('bf')) where username = 'admin';).

@@ -132,6 +132,20 @@ async function getClientById(id) {
   return data;
 }
 
+// Never surfaces api_key to the browser — only whether one is set. Fails soft
+// (rather than breaking the whole admin dashboard) if the migration for this
+// table hasn't been run yet on an existing deployment.
+async function getSandataIntegrationSafely() {
+  try {
+    const { data, error } = await supabase.from("integration_settings").select("*").eq("id", "sandata").maybeSingle();
+    if (error) return { apiUrl: "", hasApiKey: false, connected: false, updatedAt: null, updatedBy: null };
+    if (!data) return { apiUrl: "", hasApiKey: false, connected: false, updatedAt: null, updatedBy: null };
+    return { apiUrl: data.api_url || "", hasApiKey: !!data.api_key, connected: false, updatedAt: data.updated_at, updatedBy: data.updated_by };
+  } catch (e) {
+    return { apiUrl: "", hasApiKey: false, connected: false, updatedAt: null, updatedBy: null };
+  }
+}
+
 /* ---------- App setup ---------- */
 const app = express();
 app.use(express.json());
@@ -419,7 +433,8 @@ app.get("/api/overview", requireAuth, h(async (req, res) => {
       shifts: shifts.map(rowToShift),
       documents: documents.map(rowToDocument),
       messages: messages.map(rowToMessage),
-      taskTemplates: taskTemplates.map(rowToTaskTemplate)
+      taskTemplates: taskTemplates.map(rowToTaskTemplate),
+      sandataIntegration: await getSandataIntegrationSafely()
     });
   }
 
@@ -740,6 +755,32 @@ app.post("/api/admin/certifications/:certId/reject", requireAuth, requireAdmin, 
   const { data, error } = await supabase.from("users").update({ certifications }).eq("id", owner.id).select().single();
   throwIfError(error, "reject-renewal");
   res.json(rowToPublicUser(data));
+}));
+
+/* ---------- Sandata integration (placeholder — admin only) ----------
+   Not wired up to any real Sandata endpoint yet. This just stores credentials
+   for whenever real API access is available, so the UI/plumbing is ready. */
+app.post("/api/admin/integrations/sandata", requireAuth, requireAdmin, h(async (req, res) => {
+  const { apiUrl, apiKey } = req.body || {};
+  const { data: existing } = await supabase.from("integration_settings").select("*").eq("id", "sandata").maybeSingle();
+  const admin = await getUserById(req.userId);
+  const patch = {
+    id: "sandata",
+    api_url: apiUrl !== undefined ? apiUrl.trim() : (existing ? existing.api_url : ""),
+    api_key: apiKey && apiKey.trim() ? apiKey.trim() : (existing ? existing.api_key : ""),
+    updated_at: new Date().toISOString(),
+    updated_by: admin.name
+  };
+  const { error } = existing
+    ? await supabase.from("integration_settings").update(patch).eq("id", "sandata")
+    : await supabase.from("integration_settings").insert(patch);
+  throwIfError(error, "save-sandata-integration");
+  res.json(await getSandataIntegrationSafely());
+}));
+
+app.post("/api/admin/integrations/sandata/sync", requireAuth, requireAdmin, h(async (req, res) => {
+  // Intentionally not implemented — no real Sandata API endpoint to call yet.
+  res.status(501).json({ error: "Sandata sync isn't live yet. This needs real API access from Sandata first (endpoint URL, auth method, and available fields) — once you have that, this button gets wired up to actually pull data." });
 }));
 
 /* ---------- Messages ---------- */

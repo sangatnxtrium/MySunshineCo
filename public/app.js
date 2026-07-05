@@ -225,6 +225,7 @@ const NAV = {
     {id:"tasktemplates", label:"Task Templates"},
     {id:"documents", label:"Documents"},
     {id:"messages", label:"Messages"},
+    {id:"integrations", label:"Integrations"},
     {id:"myaccount", label:"My Account"}
   ],
   caregiver: [
@@ -298,6 +299,7 @@ function renderMain(){
     else if(currentView==="tasktemplates") main.innerHTML = viewAdminTaskTemplates();
     else if(currentView==="documents") main.innerHTML = viewAdminDocuments();
     else if(currentView==="messages") main.innerHTML = viewAdminMessages();
+    else if(currentView==="integrations") main.innerHTML = viewAdminIntegrations();
     else if(currentView==="myaccount") main.innerHTML = viewAdminAccount();
   } else {
     if(currentView==="myshifts") main.innerHTML = viewCaregiverShifts();
@@ -642,6 +644,24 @@ function viewAdminAccount(){
   </div>`;
 }
 
+function viewAdminIntegrations(){
+  const s = VIEW.sandataIntegration || {apiUrl:"", hasApiKey:false, connected:false, updatedAt:null, updatedBy:null};
+  return `<h1 class="page-title">Integrations</h1>
+  <div class="page-sub">Admin-only. This stores connection details for a future Sandata integration — it doesn't sync any data yet.</div>
+
+  <div class="card">
+    <h3>Sandata ${s.connected ? '<span class="badge badge-green">Connected</span>' : '<span class="badge badge-gray">Not connected</span>'}</h3>
+    <div class="note-banner">Not live yet — this needs real API access from Sandata first (endpoint URL, auth method, available fields). Saving credentials here just stores them for when that's ready.</div>
+    <div class="field-row"><label>API URL</label><input type="text" id="sandataApiUrl" placeholder="https://api.sandata.example/..." value="${s.apiUrl||''}"></div>
+    <div class="field-row"><label>API key ${s.hasApiKey ? '<span class="muted">(a key is already saved — leave blank to keep it)</span>' : ''}</label><input type="password" id="sandataApiKey" placeholder="${s.hasApiKey ? '••••••••' : 'Paste API key'}"></div>
+    ${s.updatedAt ? `<div class="muted" style="font-size:11.5px;margin-top:6px;">Last updated ${new Date(s.updatedAt).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})} by ${s.updatedBy||"—"}</div>` : ""}
+    <div class="row-flex" style="margin-top:10px;">
+      <button class="btn btn-primary btn-sm" id="btnSaveSandata">Save</button>
+      <button class="btn btn-outline btn-sm" id="btnSyncSandata">Sync now</button>
+    </div>
+  </div>`;
+}
+
 /* ---------- CAREGIVER views ---------- */
 function viewCaregiverShifts(){
   const shifts = shiftsForCaregiver(SESSION.id).sort((a,b)=> new Date(a.startTime)-new Date(b.startTime));
@@ -931,6 +951,25 @@ function attachViewHandlers(){
     try{ await api("/api/change-password", {method:"POST", body: JSON.stringify({currentPassword, newPassword})}); showToast("Password updated."); document.getElementById("curPw").value=""; document.getElementById("newPw").value=""; }
     catch(e){ showToast(e.message, true); }
   });
+
+  const btnSaveSandata = document.getElementById("btnSaveSandata");
+  if(btnSaveSandata) btnSaveSandata.addEventListener("click", async ()=>{
+    const apiUrl = document.getElementById("sandataApiUrl").value.trim();
+    const apiKey = document.getElementById("sandataApiKey").value.trim();
+    try{
+      await api("/api/admin/integrations/sandata", {method:"POST", body: JSON.stringify({apiUrl, apiKey})});
+      showToast("Saved.");
+      await refresh(false);
+    }catch(e){ showToast(e.message, true); }
+  });
+
+  const btnSyncSandata = document.getElementById("btnSyncSandata");
+  if(btnSyncSandata) btnSyncSandata.addEventListener("click", async ()=>{
+    try{
+      await api("/api/admin/integrations/sandata/sync", {method:"POST"});
+      showToast("Sync complete.");
+    }catch(e){ showToast(e.message, true); }
+  });
 }
 
 async function refresh(rerenderNav){
@@ -1026,6 +1065,16 @@ function renderCaregiverEditModal(cgId, editingCertId){
     </div>
     <div style="margin-top:10px;"><button class="btn btn-primary btn-sm" id="saveCgProfileBtn">Save profile</button></div>
     <hr class="divider">
+    <h4 style="margin:0 0 8px;font-size:13.5px;">Assigned clients</h4>
+    <div class="page-sub" style="margin:-4px 0 8px;">Same assignment as the Clients page — check a client here and they'll show as assigned there too.</div>
+    <div id="assignedClientsWrap">
+      ${VIEW.clients.length===0 ? '<div class="muted" style="font-size:12.5px;">No clients yet — add one from the Clients page first.</div>' :
+        VIEW.clients.map(c=>`
+        <label class="checklist-item" style="margin-bottom:6px;">
+          <input type="checkbox" data-cg-assign-toggle="${c.id}" ${(c.assignedCaregiverIds||[]).includes(cgId)?"checked":""}> ${c.name}${c.active?"":' <span class="badge badge-gray">Inactive</span>'}
+        </label>`).join("")}
+    </div>
+    <hr class="divider">
     <h4 style="margin:0 0 8px;font-size:13.5px;">Certifications</h4>
     <div id="certListWrap">
       ${(cg.certifications||[]).map(c=>renderCertRow(c, editingCertId)).join("") || '<div class="muted" style="font-size:12.5px;">None on file.</div>'}
@@ -1052,6 +1101,18 @@ function renderCaregiverEditModal(cgId, editingCertId){
       await loadOverview(); renderMain(); renderCaregiverEditModal(cgId, null);
     }catch(e){ showToast(e.message, true); }
   });
+
+  body.querySelectorAll("[data-cg-assign-toggle]").forEach(cb=>cb.addEventListener("change", async ()=>{
+    const clientId = cb.dataset.cgAssignToggle;
+    try{
+      if(cb.checked){
+        await api(`/api/admin/clients/${clientId}/assign`, {method:"POST", body: JSON.stringify({caregiverId: cgId})});
+      } else {
+        await api(`/api/admin/clients/${clientId}/assign/${cgId}`, {method:"DELETE"});
+      }
+      await loadOverview(); renderMain(); renderCaregiverEditModal(cgId, editingCertId);
+    }catch(e){ showToast(e.message, true); }
+  }));
 
   document.getElementById("addCertBtn").addEventListener("click", async ()=>{
     const name = document.getElementById("newCertName").value.trim();
